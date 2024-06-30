@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="description" content="allergen-information-detection">
+  <meta name="keywords" content="HTML, CSS, JavaScript">
+  <meta name="author" content="Arya Hariharan">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="style.css">
+  <title>NutriSafe</title>
+</head>
+
+<body>
+  <div class="header">
+    <a href="#default" class="logo"><img src="logo.png" alt="NutriSafe Logo" width="70" height="60"></a>
+    <div class="header-right">
+      <a class="active" href="#home">Home</a>
+      <a href="about.html">About</a>
+      <a href="GotoProfile.html">Profile</a>
+    </div>
+  </div>
+
+  <div class="info">
+    <p>Find if a product is the right choice for you!</p>
+    <div class="description">
+      <p>Use our Ingredient Safety Checker to find out if the food item you want to purchase is allergy friendly</p>
+      <p>Just upload a photo of the ingredient label and find out if its safe to consume!</p>
+    </div>
+  </div>
+
+  <div class="image-upload">
+    <div class="file-upload-background">
+      <label class="file-upload">
+        <input type="file" name="myfile" id="file-upload">Choose Image<br><br>
+      </label>
+      <label id="file-name"></label>
+    </div>
+    <div class="container">
+      <button id="submit">Upload</button>
+    </div>
+  </div>
+
+  <div id="loader"></div>
+
+  <div id="hidden-response">
+    <div class="ingredient">
+      <p id="desp">The list of ingredients are - </p>
+      <p id="response1"></p>
+      <p id="desp">Is this item safe for consumption?</p>
+      <p id="response2"></p>
+      <p id="desp">How should you store this item?</p>
+      <p id="response3"></p>
+      <p id="desp">Try these alternatives!</p>
+      <p id="response4"></p>
+    </div>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "@google/generative-ai": "https://esm.run/@google/generative-ai"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import { GoogleGenerativeAI } from "@google/generative-ai";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getDatabase, ref, child, get, set, update, remove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+    // Your web app's Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyD7iDZ6I1tsAiEGyv_h7up8nfYkAWB0hHU",
+      authDomain: "biology-dfa72.firebaseapp.com",
+      databaseURL: "https://biology-dfa72-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "biology-dfa72",
+      storageBucket: "biology-dfa72.appspot.com",
+      messagingSenderId: "295125268878",
+      appId: "1:295125268878:web:6b0f65caa52c46c14f0cdf",
+      measurementId: "G-QGDMJ1G3PP"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+
+    const auth = getAuth();
+    const db = getDatabase();
+
+    // Function to check if the product is safe based on user's allergens and dietary preferences
+    function isProductSafe(ingredients, profileData) {
+      const allergens = profileData.allergy;
+      const diets = profileData.diet;
+
+      // Check for allergens
+      for (let allergen in allergens) {
+        if (allergens[allergen]) {
+          for (let ingredient of ingredients) {
+            if (ingredient.toLowerCase().includes(allergen.toLowerCase())) {
+              return `No, this product is not safe to consume because it contains ${allergen}.`;
+            }
+          }
+        }
+      }
+
+      // Check for dietary restrictions
+      for (let diet in diets) {
+        if (diets[diet]) {
+          for (let ingredient of ingredients) {
+            if (ingredient.toLowerCase().includes(diet.toLowerCase())) {
+              return `No, this product is not suitable for your ${diet} diet.`;
+            }
+          }
+        }
+      }
+
+      return "Yes, this product is safe to consume.";
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      const submitButton = document.getElementById("submit");
+      const hiddenContent = document.getElementById('hidden-response');
+      const loaderSymbol = document.getElementById('loader');
+
+      console.log("loading1...");
+
+      const API_KEY = "AIzaSyAR1LlrC0a_vui72x5rbkhQiv7mR2LI9Lk";
+
+      const genAI = new GoogleGenerativeAI(API_KEY);
+
+      async function fileToGenerativePart(file) {
+        const base64EncodedDataPromise = new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result.split(',')[1]);
+          reader.readAsDataURL(file);
+        });
+        return {
+          inlineData: { data: await base64EncodedDataPromise, mimeType: file.type },
+        };
+      }
+
+      async function run() {
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+        let prompt = "List all the ingredients in this label, with each ingredient in a new line. No other text apart from the ingredients.";
+
+        const fileInputEl = document.querySelector("input[type=file]");
+        const imageParts = await Promise.all(
+          [...fileInputEl.files].map(fileToGenerativePart)
+        );
+
+        let result = await model.generateContent([prompt, ...imageParts]);
+        let response = await result.response;
+        let text = await response.text();
+        console.log(text);
+
+        const ingredients = text.split("\n");
+        let formattedText = ingredients.map(ingredient => `<li>${ingredient}</li>`).join("");
+        document.getElementById("response1").innerHTML = formattedText;
+        console.log("Complete");
+
+        // Fetch user profile data from Firebase
+        const user = auth.currentUser;
+        if (user) {
+          const uid = user.uid;
+          const userRef = ref(db, 'users/' + uid);
+          const userSnapshot = await get(userRef);
+
+          if (userSnapshot.exists()) {
+            const username = userSnapshot.val().username;
+            const profileRef = ref(db, 'CustomerSet/' + username);
+            const profileSnapshot = await get(profileRef);
+
+            if (profileSnapshot.exists()) {
+              const profileData = profileSnapshot.val();
+
+              // Check if the product is safe
+              const safetyMessage = isProductSafe(ingredients, profileData);
+              document.getElementById("response2").innerHTML = safetyMessage;
+            } else {
+              console.log("Customer data doesn't exist");
+            }
+          } else {
+            console.log("No data available");
+          }
+        } else {
+          console.log("User is signed out");
+          window.location.href = 'about.html';
+        }
+
+        prompt = "Identify the type of food item and provide detailed instructions on how to store the food item to avoid health risks."
+        result = await model.generateContent([prompt, ...imageParts]);
+        response = await result.response;
+        text = await response.text();
+        formattedText = text.replace(/\n/g, "<br>");
+        document.getElementById("response3").innerHTML = formattedText;
+        console.log("Complete");
+
+        prompt = "Identify the food item or type of food item that the list of ingredients is for. Classify it as highly processed food, natural/not processed food and slightly processed food. Based on the food item, suggest 3 other healthy recipes similar to the food item. Reply in plain text"
+        result = await model.generateContent([prompt, ...imageParts]);
+        response = await result.response;
+        text = await response.text();
+        formattedText = text.replace(/\n/g, "<br>");
+        document.getElementById("response4").innerHTML = formattedText;
+        console.log("Complete");
+      }
+
+      submitButton.addEventListener("click", function () {
+        loaderSymbol.scrollIntoView();
+        loaderSymbol.style.display = 'block';
+        run();
+        hiddenContent.style.display = 'none';
+        setTimeout(function () {
+          loaderSymbol.style.display = 'none';
+          hiddenContent.style.display = 'block';
+        }, 10000);
+      });
+    });
+  </script>
+</body>
+
+</html>
