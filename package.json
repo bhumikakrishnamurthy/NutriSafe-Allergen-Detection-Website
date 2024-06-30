@@ -1,0 +1,19 @@
+{
+  "name": "nutrisafe",
+  "version": "1.0.0",
+  "homepage": " https://bhumikakrishnamurthy.github.io/NutriSafe-Allergen-Detection-Website/",
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "deploy": "gh-pages -d build"
+  },
+  "dependencies": {
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2"
+  },
+  "devDependencies": {
+    "gh-pages": "^6.1.1",
+    "react-scripts": "^5.0.1"
+  }
+}
